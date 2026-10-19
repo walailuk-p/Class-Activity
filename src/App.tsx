@@ -10,16 +10,29 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Check URL parameters for direct student submission links or teacher shortcut
+  // Always reset to Student Portal (Step 1: Assignment Code) on default load
   useEffect(() => {
+    // Clear any persistent storage to ensure fresh student entry every time
+    try {
+      sessionStorage.removeItem('classwork_view');
+      sessionStorage.removeItem('classwork_state');
+      sessionStorage.removeItem('classwork_step');
+    } catch {
+      // ignore
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
-    const isTeacherRoute =
+    const isExplicitTeacherRoute =
       window.location.hash === '#teacher' || urlParams.get('mode') === 'teacher';
 
-    if (isTeacherRoute) {
+    if (isExplicitTeacherRoute) {
       setCurrentView('teacher');
     } else {
       setCurrentView('student');
+      // If there's an unnecessary hash, reset to clean path
+      if (window.location.hash === '#teacher') {
+        window.location.hash = '';
+      }
     }
 
     // Subscribe to Firebase Auth state
@@ -32,8 +45,8 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] text-slate-700 flex flex-col font-['Mitr',system-ui,sans-serif] selection:bg-purple-200 selection:text-purple-900">
-      {/* Cute & Minimal Header */}
+    <div className="min-h-screen bg-[#FFFDF7] text-slate-800 flex flex-col font-['Itim','Mitr',system-ui,sans-serif] selection:bg-purple-200 selection:text-purple-900 text-[16px] leading-relaxed">
+      {/* Clean Header */}
       <Navbar
         onLogoClick={() => {
           setCurrentView('student');
@@ -61,28 +74,21 @@ export default function App() {
         )}
       </main>
 
-      {/* Cute & Minimal Footer */}
-      <footer className="py-6 border-t border-purple-100 bg-[#FFFDF7] text-xs text-purple-700/60 text-center">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5">
-            <span>✨</span>
-            <p>
-              ClassWork • ระบบส่งงานในชั้นเรียน (Cute & Minimal Edition)
-            </p>
-          </div>
+      {/* Clean Minimal Footer */}
+      <footer className="py-6 border-t border-purple-100 bg-[#FFFDF7] text-sm text-purple-800/70">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+          <p className="font-medium text-slate-700">
+            ClassWork • ระบบส่งงานในชั้นเรียน
+          </p>
 
-          <div className="flex items-center gap-3 text-[11px] text-purple-400">
-            <span>SPARK PLAN FREE</span>
-            <span>•</span>
-            <span>GOOGLE DRIVE GAS</span>
-            <span>•</span>
+          <div>
             <button
               onClick={() => {
                 const nextView = currentView === 'teacher' ? 'student' : 'teacher';
                 setCurrentView(nextView);
                 window.location.hash = nextView === 'teacher' ? '#teacher' : '';
               }}
-              className="text-purple-400 hover:text-purple-700 underline underline-offset-4 cursor-pointer transition-colors"
+              className="text-purple-600 hover:text-purple-900 font-medium underline underline-offset-4 cursor-pointer transition-colors text-sm"
             >
               {currentView === 'teacher' ? '← หน้าส่งงานนักศึกษา' : 'สำหรับคุณครู/อาจารย์'}
             </button>

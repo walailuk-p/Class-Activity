@@ -63,17 +63,21 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [receipt, setReceipt] = useState<Submission | null>(null);
   const [copiedReceipt, setCopiedReceipt] = useState(false);
 
-  // Handle URL parameter on load (e.g., ?code=ABC123 or #code=ABC123)
+  // Handle URL parameter on load: always ensure Step 1 is default unless ?code= is explicitly provided
   useEffect(() => {
+    // Clear any potential leftover student session data
+    sessionStorage.removeItem('classwork_state');
+    sessionStorage.removeItem('classwork_step');
+
     const params = new URLSearchParams(window.location.search);
-    const codeParam =
-      params.get('code') ||
-      (window.location.hash.includes('code=')
-        ? window.location.hash.split('code=')[1]?.slice(0, 6)
-        : '');
+    const codeParam = params.get('code');
     if (codeParam && codeParam.trim().length >= 4) {
       setAssignmentCode(codeParam.trim().toUpperCase());
       handleLookupAssignment(codeParam.trim().toUpperCase());
+    } else {
+      setStep(1);
+      setAssignment(null);
+      setVerifiedStudent(null);
     }
   }, []);
 
@@ -422,7 +426,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               className="space-y-5"
             >
               <div>
-                <label className="block text-xs font-semibold text-purple-900 mb-2 text-center">
+                <label className="block text-sm sm:text-base font-semibold text-purple-950 mb-2.5 text-center">
                   รหัสงาน 6 หลัก (Assignment Code)
                 </label>
 
@@ -438,7 +442,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     }}
                     placeholder="เช่น K7M2P9"
                     autoFocus
-                    className="w-full text-center tracking-[0.25em] font-['Fredoka',sans-serif] text-2xl sm:text-3xl font-bold py-4 px-6 bg-purple-50/70 text-purple-900 border-2 border-purple-200 rounded-full focus:bg-white focus:border-purple-400 focus:ring-4 focus:ring-purple-200/60 focus:outline-hidden transition-all uppercase placeholder:normal-case placeholder:tracking-normal placeholder:font-['Mitr',sans-serif] placeholder:text-purple-300 placeholder:text-base shadow-inner"
+                    className="w-full text-center tracking-[0.25em] font-['Fredoka',sans-serif] text-2xl sm:text-3xl font-bold py-4 px-6 bg-purple-50/70 text-purple-950 border-2 border-purple-200 rounded-full focus:bg-white focus:border-purple-400 focus:ring-4 focus:ring-purple-200/60 focus:outline-hidden transition-all uppercase placeholder:normal-case placeholder:tracking-normal placeholder:font-['Itim',sans-serif] placeholder:text-purple-300 placeholder:text-lg shadow-inner"
                   />
                 </div>
 
@@ -469,11 +473,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 )}
               </button>
             </form>
-
-            <div className="mt-7 pt-5 border-t border-purple-100 flex items-center justify-center text-xs text-purple-600/70 gap-2">
-              <Smile className="w-4 h-4 text-purple-400" />
-              <span>ไม่ต้องสมัครสมาชิก • ส่งผ่านมือถือได้ทันที</span>
-            </div>
           </div>
         )}
 
@@ -546,7 +545,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             {/* Verification Form */}
             <form onSubmit={handleVerifyStudent} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-purple-900 mb-2 text-center">
+                <label className="block text-sm sm:text-base font-semibold text-purple-950 mb-2.5 text-center">
                   กรอกรหัสนักศึกษา เพื่อยืนยันตัวตน
                 </label>
                 <div className="relative">
@@ -559,10 +558,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     }}
                     placeholder="เช่น 1650701234"
                     autoFocus
-                    className="w-full text-center tracking-widest font-['Fredoka',sans-serif] text-2xl font-bold py-3.5 px-6 bg-purple-50/70 text-purple-950 border-2 border-purple-200 rounded-full focus:bg-white focus:border-purple-400 focus:ring-4 focus:ring-purple-200/60 focus:outline-hidden transition-all shadow-inner placeholder:text-purple-300 placeholder:text-base placeholder:tracking-normal placeholder:font-['Mitr',sans-serif]"
+                    className="w-full text-center tracking-widest font-['Fredoka',sans-serif] text-2xl sm:text-3xl font-bold py-4 px-6 bg-purple-50/70 text-purple-950 border-2 border-purple-200 rounded-full focus:bg-white focus:border-purple-400 focus:ring-4 focus:ring-purple-200/60 focus:outline-hidden transition-all shadow-inner placeholder:text-purple-300 placeholder:text-lg placeholder:tracking-normal placeholder:font-['Itim',sans-serif]"
                   />
                 </div>
-                <p className="text-[11px] text-purple-600/70 mt-2 text-center">
+                <p className="text-xs sm:text-sm text-purple-700/80 mt-2 text-center">
                   ระบบจะดึงเลขที่ ชื่อ-นามสกุล และกลุ่มเรียนมาแสดงให้ตรวจสอบความถูกต้องจ้า
                 </p>
 
@@ -682,7 +681,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               {/* File Upload Dropzone */}
               {submissionType === 'file' ? (
                 <div>
-                  <label className="block text-xs font-semibold text-purple-900 mb-2">
+                  <label className="block text-sm sm:text-base font-semibold text-purple-950 mb-2">
                     เลือกไฟล์งานของคุณ (PDF, Word, รูปภาพ)
                   </label>
                   <div className="relative border-2 border-dashed border-purple-300 hover:border-purple-400 rounded-[24px] p-7 text-center bg-purple-50/40 hover:bg-purple-50/70 transition-all cursor-pointer group">
@@ -697,15 +696,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       </div>
                       {selectedFile ? (
                         <div>
-                          <p className="text-sm font-bold text-purple-950 break-all">{selectedFile.name}</p>
-                          <p className="text-xs text-purple-600 mt-1 font-['Fredoka',sans-serif]">
+                          <p className="text-base font-bold text-purple-950 break-all">{selectedFile.name}</p>
+                          <p className="text-sm text-purple-700 mt-1 font-['Fredoka',sans-serif]">
                             {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • แตะเพื่อเปลี่ยนไฟล์
                           </p>
                         </div>
                       ) : (
                         <div>
-                          <p className="text-sm font-semibold text-purple-900">แตะเพื่อเลือกไฟล์จากเครื่อง</p>
-                          <p className="text-xs text-purple-500 mt-1">
+                          <p className="text-base font-semibold text-purple-950">แตะเพื่อเลือกไฟล์จากเครื่อง</p>
+                          <p className="text-xs sm:text-sm text-purple-600/80 mt-1">
                             ขนาดสูงสุด {assignment.maxFileSizeMB || 10} MB
                           </p>
                         </div>
@@ -716,7 +715,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               ) : (
                 /* Link Input Area */
                 <div>
-                  <label className="block text-xs font-semibold text-purple-900 mb-2">
+                  <label className="block text-sm sm:text-base font-semibold text-purple-950 mb-2">
                     ลิงก์ผลงาน (URL)
                   </label>
                   <input
@@ -724,9 +723,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     value={workLink}
                     onChange={(e) => setWorkLink(e.target.value)}
                     placeholder="https://docs.google.com/... หรือ Canva, Figma"
-                    className="w-full px-5 py-3.5 bg-purple-50/60 text-purple-950 border-2 border-purple-200 rounded-full text-xs sm:text-sm focus:bg-white focus:border-purple-400 focus:ring-4 focus:ring-purple-200/60 focus:outline-hidden transition-all shadow-inner"
+                    className="w-full px-5 py-3.5 bg-purple-50/60 text-purple-950 border-2 border-purple-200 rounded-full text-sm sm:text-base focus:bg-white focus:border-purple-400 focus:ring-4 focus:ring-purple-200/60 focus:outline-hidden transition-all shadow-inner"
                   />
-                  <p className="text-[11px] text-purple-600/70 mt-1.5 px-3">
+                  <p className="text-xs sm:text-sm text-purple-700/80 mt-1.5 px-3">
                     *อย่าลืมเปิดสิทธิ์ให้ทุกคนที่มีลิงก์สามารถดูได้นะ (Anyone with link can view)
                   </p>
                 </div>
@@ -796,15 +795,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
                 <div>
                   <span className="text-purple-600/80">สถานะ:</span>{' '}
                   {receipt.status === 'on_time' ? (
-                    <span className="font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    <span className="font-bold text-emerald-700 bg-emerald-100 px-3 py-0.5 rounded-full border border-emerald-200">
                       ✨ ส่งตรงเวลา
                     </span>
                   ) : (
-                    <span className="font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-200">
+                    <span className="font-bold text-amber-700 bg-amber-100 px-3 py-0.5 rounded-full border border-amber-200">
                       ส่งช้า
                     </span>
                   )}
@@ -817,7 +816,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 </div>
                 <div>
                   <span className="text-purple-600/80">รหัสนักศึกษา:</span>{' '}
-                  <strong className="font-['Fredoka',sans-serif] text-purple-950">{receipt.studentId}</strong>
+                  <strong className="font-['Fredoka',sans-serif] text-purple-950 text-sm">{receipt.studentId}</strong>
                 </div>
                 <div>
                   <span className="text-purple-600/80">กลุ่มเรียน:</span>{' '}
@@ -825,7 +824,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 </div>
                 <div className="col-span-2 pt-1 border-t border-purple-200/60">
                   <span className="text-purple-600/80">ชื่อ-นามสกุล:</span>{' '}
-                  <strong className="text-purple-950">{receipt.studentName}</strong>
+                  <strong className="text-purple-950 text-sm sm:text-base">{receipt.studentName}</strong>
                 </div>
                 <div className="col-span-2">
                   <span className="text-purple-600/80">งานที่ส่ง:</span>{' '}
@@ -834,12 +833,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   </strong>
                 </div>
                 {receipt.fileName && (
-                  <div className="col-span-2 text-purple-700 truncate text-[11px]">
+                  <div className="col-span-2 text-purple-700 truncate text-xs">
                     ไฟล์: <span className="font-medium text-purple-900">{receipt.fileName}</span>
                   </div>
                 )}
                 {receipt.workLink && (
-                  <div className="col-span-2 text-purple-700 truncate text-[11px]">
+                  <div className="col-span-2 text-purple-700 truncate text-xs">
                     ลิงก์: <span className="font-medium text-purple-600 underline">{receipt.workLink}</span>
                   </div>
                 )}
