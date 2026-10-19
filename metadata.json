@@ -1,0 +1,6 @@
+{
+  "name": "ClassWork - ระบบส่งงานในชั้นเรียน",
+  "description": "ระบบบริหารจัดการและส่งงานในชั้นเรียนสำหรับอาจารย์และนักศึกษา ส่งงานได้ทันทีโดยไม่ต้อง Log In e-mail และไม่ใช้ QR Code รองรับ Firebase Spark Plan และ Google Drive ผ่าน Google Apps Script",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

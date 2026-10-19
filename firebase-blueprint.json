@@ -1,0 +1,132 @@
+{
+  "entities": {
+    "Course": {
+      "title": "Course",
+      "description": "Represents an academic subject/course managed by an instructor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 32 },
+        "title": { "type": "string", "maxLength": 200 },
+        "sections": { "type": "array" },
+        "instructorId": { "type": "string", "maxLength": 128 },
+        "instructorEmail": { "type": "string", "maxLength": 150 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["code", "title", "instructorId"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student roster record linked to a course and section",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "courseId": { "type": "string", "maxLength": 128 },
+        "sec": { "type": "string", "maxLength": 32 },
+        "studentNo": { "type": "string", "maxLength": 32 },
+        "studentId": { "type": "string", "maxLength": 32 },
+        "fullName": { "type": "string", "maxLength": 150 },
+        "email": { "type": "string", "maxLength": 150 },
+        "instructorId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["courseId", "studentId", "fullName", "sec", "instructorId"]
+    },
+    "RosterLookup": {
+      "title": "RosterLookup",
+      "description": "Minimal student verification record queryable by specific studentId without exposing the full roster",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "courseId": { "type": "string", "maxLength": 128 },
+        "sec": { "type": "string", "maxLength": 32 },
+        "studentNo": { "type": "string", "maxLength": 32 },
+        "studentId": { "type": "string", "maxLength": 32 },
+        "fullName": { "type": "string", "maxLength": 150 },
+        "instructorId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["courseId", "studentId", "fullName", "sec", "instructorId"]
+    },
+    "Assignment": {
+      "title": "Assignment",
+      "description": "Classwork task with 6-digit code, due date, submission rules, and optional worksheet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 16 },
+        "courseId": { "type": "string", "maxLength": 128 },
+        "courseCode": { "type": "string", "maxLength": 32 },
+        "courseTitle": { "type": "string", "maxLength": 200 },
+        "sec": { "type": "string", "maxLength": 32 },
+        "title": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 3000 },
+        "acceptedTypes": { "type": "array" },
+        "openAt": { "type": "string", "maxLength": 64 },
+        "closeAt": { "type": "string", "maxLength": 64 },
+        "allowLate": { "type": "boolean" },
+        "allowResubmit": { "type": "boolean" },
+        "maxFileSizeMB": { "type": "number" },
+        "worksheetUrl": { "type": "string", "maxLength": 1000 },
+        "worksheetName": { "type": "string", "maxLength": 200 },
+        "gasWebAppUrl": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["open", "closed", "archived"] },
+        "instructorId": { "type": "string", "maxLength": 128 },
+        "instructorEmail": { "type": "string", "maxLength": 150 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["code", "courseId", "title", "openAt", "closeAt", "instructorId"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "Student work submission record with verification receipt and timestamp",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "assignmentId": { "type": "string", "maxLength": 128 },
+        "assignmentCode": { "type": "string", "maxLength": 16 },
+        "courseId": { "type": "string", "maxLength": 128 },
+        "sec": { "type": "string", "maxLength": 32 },
+        "studentNo": { "type": "string", "maxLength": 32 },
+        "studentId": { "type": "string", "maxLength": 32 },
+        "studentName": { "type": "string", "maxLength": 150 },
+        "status": { "type": "string", "enum": ["on_time", "late", "missing", "personal_leave", "sick_leave"] },
+        "submissionType": { "type": "string", "enum": ["file", "link"] },
+        "fileUrl": { "type": "string", "maxLength": 1500 },
+        "fileName": { "type": "string", "maxLength": 250 },
+        "fileSize": { "type": "number" },
+        "workLink": { "type": "string", "maxLength": 1500 },
+        "receiptId": { "type": "string", "maxLength": 64 },
+        "feedback": { "type": "string", "maxLength": 1000 },
+        "score": { "type": "number" },
+        "instructorOverride": { "type": "boolean" },
+        "submittedAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["assignmentId", "studentId", "studentName", "status", "receiptId", "submittedAt"]
+    }
+  },
+  "firestore": {
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Courses managed by instructors"
+    },
+    "/students/{studentDocId}": {
+      "schema": "Student",
+      "description": "Full student roster records managed by instructors"
+    },
+    "/rosterLookup/{lookupId}": {
+      "schema": "RosterLookup",
+      "description": "Isolated single-student lookup records accessible individually by student ID without listing all students"
+    },
+    "/assignments/{assignmentId}": {
+      "schema": "Assignment",
+      "description": "Classwork assignments"
+    },
+    "/submissions/{submissionId}": {
+      "schema": "Submission",
+      "description": "Student submissions and instructor feedback"
+    }
+  }
+}
