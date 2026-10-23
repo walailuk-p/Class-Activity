@@ -6,6 +6,7 @@ import {
   getDocs,
   updateDoc,
   deleteDoc,
+  writeBatch,
   query,
   where,
   limit
@@ -157,8 +158,29 @@ export async function extendAssignmentDeadline(
 
 export async function deleteAssignment(assignmentId: string): Promise<void> {
   try {
+    // 1. Fetch any submissions associated with this assignment
+    const submissionsQuery = query(
+      collection(db, 'submissions'),
+      where('assignmentId', '==', assignmentId)
+    );
+    const submissionsSnap = await getDocs(submissionsQuery);
+
+    // 2. Delete all associated submissions in batches (Firestore limit: 500 ops per batch)
+    const subDocs = submissionsSnap.docs;
+    const chunkSize = 400;
+    for (let i = 0; i < subDocs.length; i += chunkSize) {
+      const chunk = subDocs.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+      chunk.forEach((subDoc) => {
+        batch.delete(subDoc.ref);
+      });
+      await batch.commit();
+    }
+
+    // 3. Delete the target assignment document
     await deleteDoc(doc(db, 'assignments', assignmentId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `assignments/${assignmentId}`);
   }
 }
+

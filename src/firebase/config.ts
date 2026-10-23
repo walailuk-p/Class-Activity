@@ -76,13 +76,33 @@ async function testConnection() {
 }
 testConnection();
 
+let isGoogleSignInInProgress = false;
+
 export const loginWithGoogle = async () => {
+  if (isGoogleSignInInProgress) {
+    console.warn('Google sign-in is already in progress.');
+    return null;
+  }
+
+  isGoogleSignInInProgress = true;
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
+    // Gracefully handle user cancellation or superseded popup requests
+    if (
+      error?.code === 'auth/cancelled-popup-request' ||
+      error?.code === 'auth/popup-closed-by-user' ||
+      error?.message?.includes('cancelled-popup-request') ||
+      error?.message?.includes('popup-closed-by-user')
+    ) {
+      console.log('Google sign-in popup closed or cancelled by user.');
+      return null;
+    }
     console.error('Error signing in with Google:', error);
     throw error;
+  } finally {
+    isGoogleSignInInProgress = false;
   }
 };
 

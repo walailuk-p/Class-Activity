@@ -6,8 +6,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function isAuthorizedTeacher() {
+      return request.auth != null 
+        && request.auth.token.email is string 
+        && request.auth.token.email.lower() == 'walailuk.p@bu.ac.th';
     }
 
     function isValidId(id) {
@@ -26,24 +28,32 @@ service cloud.firestore {
 
     // Courses collection
     match /courses/{courseId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.instructorId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.instructorId == request.auth.uid;
+      allow get, list: if isAuthorizedTeacher();
+      allow create: if isAuthorizedTeacher() && request.resource.data.instructorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'walailuk.p@bu.ac.th') ||
+        resource.data.instructorId == request.auth.uid
+      );
     }
 
     // Students roster collection (Teacher private)
     match /students/{studentDocId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read: if isAuthorizedTeacher();
+      allow write: if isAuthorizedTeacher() || (isSignedIn() && (
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'walailuk.p@bu.ac.th') ||
+        (resource != null && resource.data.instructorId == request.auth.uid)
+      ));
     }
 
     // Isolated Student Lookup (get single student by exact key: courseId_studentId)
     // List is forbidden to prevent scraping entire student rosters!
     match /rosterLookup/{lookupId} {
       allow get: if true;
-      allow list: if isSignedIn();
-      allow write: if isSignedIn();
+      allow list: if isAuthorizedTeacher();
+      allow write: if isAuthorizedTeacher() || (isSignedIn() && (
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'walailuk.p@bu.ac.th') ||
+        (resource != null && resource.data.instructorId == request.auth.uid)
+      ));
     }
 
     // Assignments
@@ -51,16 +61,23 @@ service cloud.firestore {
       // Students need to read assignment details and query by 6-digit code
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn() && request.resource.data.instructorId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.instructorId == request.auth.uid;
+      allow create: if isAuthorizedTeacher() && request.resource.data.instructorId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'walailuk.p@bu.ac.th') ||
+        resource.data.instructorId == request.auth.uid
+      );
+      allow delete: if isSignedIn() && (
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'walailuk.p@bu.ac.th') ||
+        resource.data.instructorId == request.auth.uid
+      );
     }
 
     // Submissions
     match /submissions/{submissionId} {
       // Single submission can be retrieved by student using their submission key (assignmentId_studentId)
       allow get: if true;
-      // Listing submissions is restricted to instructors to protect student privacy
-      allow list: if isSignedIn();
+      // Listing submissions is restricted to authorized instructors to protect student privacy
+      allow list: if isAuthorizedTeacher();
       
       // Creating or updating submission by student
       allow create: if isValidId(submissionId)
@@ -69,7 +86,7 @@ service cloud.firestore {
         && request.resource.data.receiptId is string;
 
       allow update: if (
-        isSignedIn() || (
+        isAuthorizedTeacher() || (
           // Student updating before deadline
           request.resource.data.assignmentId is string
           && request.resource.data.studentId is string
@@ -78,7 +95,11 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if isSignedIn();
+      allow delete: if isSignedIn() && (
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'walailuk.p@bu.ac.th') ||
+        isAuthorizedTeacher()
+      );
     }
   }
 }
+

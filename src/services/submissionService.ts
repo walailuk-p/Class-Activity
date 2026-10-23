@@ -5,6 +5,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   onSnapshot
@@ -315,4 +316,16 @@ export function exportSubmissionsToCsv(
 
   // \uFEFF is UTF-8 Byte Order Mark for Excel Thai language support
   return '\uFEFF' + csvRows.join('\r\n');
+}
+
+/**
+ * Delete a student submission record
+ */
+export async function deleteSubmission(submissionId: string): Promise<void> {
+  const subDocRef = doc(db, 'submissions', submissionId);
+  try {
+    await deleteDoc(subDocRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `submissions/${submissionId}`);
+  }
 }

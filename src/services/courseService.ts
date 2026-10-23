@@ -3,6 +3,7 @@ import {
   doc,
   setDoc,
   getDocs,
+  updateDoc,
   deleteDoc,
   query,
   where,
@@ -40,6 +41,28 @@ export async function createCourse(
   }
 }
 
+export async function updateCourse(
+  courseId: string,
+  updates: Partial<Course>
+): Promise<void> {
+  try {
+    const cleanUpdates: Record<string, any> = {
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    if (updates.code) cleanUpdates.code = updates.code.trim().toUpperCase();
+    if (updates.title) cleanUpdates.title = updates.title.trim();
+    if (updates.sections) {
+      cleanUpdates.sections = Array.isArray(updates.sections) && updates.sections.length > 0
+        ? updates.sections.map((s) => s.trim()).filter(Boolean)
+        : ['Sec 1'];
+    }
+    await updateDoc(doc(db, 'courses', courseId), cleanUpdates);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `courses/${courseId}`);
+  }
+}
+
 export async function getCoursesByInstructor(instructorId: string): Promise<Course[]> {
   try {
     const q = query(collection(db, 'courses'), where('instructorId', '==', instructorId));
@@ -54,11 +77,37 @@ export async function getCoursesByInstructor(instructorId: string): Promise<Cour
 
 export async function deleteCourse(courseId: string): Promise<void> {
   try {
+    // 1. Fetch any students in this course
+    const studentsSnap = await getDocs(
+      query(collection(db, 'students'), where('courseId', '==', courseId))
+    );
+
+    // 2. Fetch any rosterLookup in this course
+    const lookupSnap = await getDocs(
+      query(collection(db, 'rosterLookup'), where('courseId', '==', courseId))
+    );
+
+    // 3. Delete all roster records using writeBatch chunks of 400 ops
+    const allRefsToDelete = [
+      ...studentsSnap.docs.map((d) => d.ref),
+      ...lookupSnap.docs.map((d) => d.ref),
+    ];
+
+    const chunkSize = 400;
+    for (let i = 0; i < allRefsToDelete.length; i += chunkSize) {
+      const chunk = allRefsToDelete.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+      chunk.forEach((ref) => batch.delete(ref));
+      await batch.commit();
+    }
+
+    // 4. Delete the target course document
     await deleteDoc(doc(db, 'courses', courseId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `courses/${courseId}`);
   }
 }
+
 
 export interface CSVParseResult {
   success: boolean;
@@ -92,9 +141,16 @@ export async function importStudentRoster(
     throw new Error('ไฟล์ CSV ว่างเปล่า หรือไม่มีแถวข้อมูล (ต้องมีแถวหัวตารางและข้อมูลอย่างน้อย 1 แถว)');
   }
 
-  // Parse header
+  // Detect delimiter from header line (commas, semicolons, tabs)
   const headerLine = lines[0];
-  const headers = parseCSVLine(headerLine).map((h) => h.toLowerCase().trim());
+  const delimiter = headerLine.includes('\t')
+    ? '\t'
+    : headerLine.includes(';') && !headerLine.includes(',')
+    ? ';'
+    : ',';
+
+  // Parse header
+  const headers = parseCSVLine(headerLine, delimiter).map((h) => h.toLowerCase().trim());
 
   let noIdx = headers.findIndex((h) => h.includes('เลขที่') || h.includes('no') || h === '#');
   let idIdx = headers.findIndex(
@@ -118,13 +174,14 @@ export async function importStudentRoster(
     throw new Error('ไม่พบคอลัมน์ "รหัสนักศึกษา" หรือ "ชื่อ-นามสกุล" ในไฟล์ CSV');
   }
 
-  const batch = writeBatch(db);
+  let currentBatch = writeBatch(db);
+  let batchOps = 0;
   const sectionsSet = new Set<string>();
   const errors: string[] = [];
   let importedCount = 0;
 
   for (let i = 1; i < lines.length; i++) {
-    const row = parseCSVLine(lines[i]);
+    const row = parseCSVLine(lines[i], delimiter);
     if (!row || row.length === 0 || !row.some((cell) => cell.trim().length > 0)) {
       continue;
     }
@@ -157,7 +214,7 @@ export async function importStudentRoster(
 
     // Full student record in `students`
     const studentRef = doc(db, 'students', studentDocId);
-    batch.set(studentRef, studentData);
+    currentBatch.set(studentRef, studentData);
 
     // Isolated student lookup record in `rosterLookup`
     const lookupRef = doc(db, 'rosterLookup', studentDocId);
@@ -170,29 +227,44 @@ export async function importStudentRoster(
       fullName: rawName,
       instructorId,
     };
-    batch.set(lookupRef, lookupData);
+    currentBatch.set(lookupRef, lookupData);
 
     importedCount++;
+    batchOps += 2;
+
+    // Firestore batch limit is 500 ops; commit every 400 ops (200 students)
+    if (batchOps >= 400) {
+      try {
+        await currentBatch.commit();
+        currentBatch = writeBatch(db);
+        batchOps = 0;
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, 'students_and_rosterLookup');
+      }
+    }
   }
 
-  try {
-    await batch.commit();
-    return {
-      success: true,
-      totalParsed: lines.length - 1,
-      imported: importedCount,
-      sectionsFound: Array.from(sectionsSet),
-      errors,
-    };
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'students_and_rosterLookup');
+  if (batchOps > 0) {
+    try {
+      await currentBatch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'students_and_rosterLookup');
+    }
   }
+
+  return {
+    success: true,
+    totalParsed: lines.length - 1,
+    imported: importedCount,
+    sectionsFound: Array.from(sectionsSet),
+    errors,
+  };
 }
 
 /**
- * Simple CSV line parser handling quotes and commas
+ * Simple CSV line parser handling quotes, escaped quotes, and custom delimiters
  */
-function parseCSVLine(line: string): string[] {
+function parseCSVLine(line: string, delimiter: string = ','): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -206,7 +278,7 @@ function parseCSVLine(line: string): string[] {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === delimiter && !inQuotes) {
       result.push(current.trim());
       current = '';
     } else {
@@ -216,6 +288,7 @@ function parseCSVLine(line: string): string[] {
   result.push(current.trim());
   return result;
 }
+
 
 export async function getStudentsByCourse(courseId: string): Promise<Student[]> {
   try {
