@@ -26,14 +26,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView = 'student', onToggl
           <div>
             <div className="flex items-center gap-2">
               <span className="font-['Fredoka',sans-serif] font-bold text-xl sm:text-2xl text-slate-900 tracking-tight leading-none">
-                ClassWork
-              </span>
-              <span className="hidden sm:inline-block text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100/80 px-2 py-0.5 rounded-full">
-                Minimal
+                Class Activity
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              ระบบส่งงานในชั้นเรียน
+              กิจกรรมในชั้นเรียน
             </p>
           </div>
         </div>
@@ -49,7 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView = 'student', onToggl
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            หน้านักศึกษา
+            สำหรับนักศึกษา
           </button>
           <button
             type="button"
