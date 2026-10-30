@@ -75,6 +75,15 @@ import { GAS_TEMPLATE_CODE, uploadFileToGoogleDriveViaGAS } from '../services/ga
 export const AUTHORIZED_TEACHER_EMAIL = 'walailuk.p@bu.ac.th';
 export const ALLOWED_INSTRUCTORS: string[] = [AUTHORIZED_TEACHER_EMAIL];
 
+// Helper to convert an ISO date or Date object to local YYYY-MM-DDTHH:mm string for datetime-local input
+export function toLocalDatetimeString(isoString?: string | Date): string {
+  if (!isoString) return '';
+  const d = typeof isoString === 'string' ? new Date(isoString) : isoString;
+  if (isNaN(d.getTime())) return '';
+  const localDate = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
 
 // Helper to check if a URL or filename represents a direct image format
 export function isImageUrl(url: string, fileName?: string): boolean {
@@ -334,6 +343,8 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
   // Quick Extend Deadline Modal
   const [extendModalAssignment, setExtendModalAssignment] = useState<Assignment | null>(null);
   const [extendDatetime, setExtendDatetime] = useState('');
+  const [isExtendingDeadline, setIsExtendingDeadline] = useState(false);
+  const [extendErrorMsg, setExtendErrorMsg] = useState<string | null>(null);
 
   // Delete Assignment Confirmation Modal
   const [deletingAssignmentId, setDeletingAssignmentId] = useState<string | null>(null);
@@ -357,10 +368,8 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
   // Set default dates for new assignment
   useEffect(() => {
     const now = new Date();
-    const isoNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000 - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    setAssignOpenAt(isoNow);
-    setAssignCloseAt(nextWeek);
+    setAssignOpenAt(toLocalDatetimeString(now));
+    setAssignCloseAt(toLocalDatetimeString(new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)));
   }, []);
 
   // Auto-fill saved GAS URL when entering create assignment tab
@@ -668,7 +677,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
     setEditingAssignment(assign);
     setEditAssignTitle(assign.title);
     setEditAssignDesc(assign.description || '');
-    setEditAssignCloseAt(new Date(assign.closeAt).toISOString().slice(0, 16));
+    setEditAssignCloseAt(toLocalDatetimeString(assign.closeAt));
     setEditAssignAllowLate(assign.allowLate);
     setEditAssignAllowResubmit(assign.allowResubmit);
     setEditAssignWorksheetName(assign.worksheetName || '');
@@ -812,16 +821,33 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
   };
 
   const handleExtendDeadline = async () => {
-    if (!extendModalAssignment || !extendDatetime) return;
+    if (!extendModalAssignment) return;
+    if (!extendDatetime || !extendDatetime.trim()) {
+      setExtendErrorMsg('กรุณาระบุวันและเวลากำหนดส่งใหม่');
+      return;
+    }
+    const parsedDate = new Date(extendDatetime);
+    if (isNaN(parsedDate.getTime())) {
+      setExtendErrorMsg('รูปแบบวันเวลาไม่ถูกต้อง กรุณาเลือกวันเวลาใหม่อีกครั้ง');
+      return;
+    }
+    setIsExtendingDeadline(true);
+    setExtendErrorMsg(null);
     try {
-      const iso = new Date(extendDatetime).toISOString();
+      const iso = parsedDate.toISOString();
       await extendAssignmentDeadline(extendModalAssignment.id, iso);
-      setAssignments(
-        assignments.map((a) => (a.id === extendModalAssignment.id ? { ...a, closeAt: iso } : a))
+      setAssignments((prev) =>
+        prev.map((a) => (a.id === extendModalAssignment.id ? { ...a, closeAt: iso } : a))
       );
+      if (selectedAssignment?.id === extendModalAssignment.id) {
+        setSelectedAssignment((prev) => (prev ? { ...prev, closeAt: iso } : null));
+      }
       setExtendModalAssignment(null);
     } catch (err: any) {
-      alert('ขยายเวลาไม่สำเร็จ: ' + err.message);
+      console.error('Extend deadline failed:', err);
+      setExtendErrorMsg('ขยายเวลาไม่สำเร็จ: ' + (err?.message || 'เกิดข้อผิดพลาดในการบันทึก'));
+    } finally {
+      setIsExtendingDeadline(false);
     }
   };
 
@@ -893,7 +919,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'sample_roster_classwork.csv');
+    link.setAttribute('download', 'sample_roster_classactivity.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1295,7 +1321,8 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
                         <button
                           onClick={() => {
                             setExtendModalAssignment(assign);
-                            setExtendDatetime(new Date(assign.closeAt).toISOString().slice(0, 16));
+                            setExtendErrorMsg(null);
+                            setExtendDatetime(toLocalDatetimeString(assign.closeAt));
                           }}
                           title="ขยายเวลาส่ง"
                           className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
@@ -2478,24 +2505,45 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
               <input
                 type="datetime-local"
                 value={extendDatetime}
-                onChange={(e) => setExtendDatetime(e.target.value)}
+                onChange={(e) => {
+                  setExtendDatetime(e.target.value);
+                  setExtendErrorMsg(null);
+                }}
                 className="w-full px-4 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-indigo-400 outline-hidden"
               />
             </div>
+            {extendErrorMsg && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                <span className="break-all">{extendErrorMsg}</span>
+              </div>
+            )}
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setExtendModalAssignment(null)}
-                className="px-4 py-1.5 text-xs text-slate-500 hover:text-slate-800 cursor-pointer"
+                disabled={isExtendingDeadline}
+                onClick={() => {
+                  setExtendModalAssignment(null);
+                  setExtendErrorMsg(null);
+                }}
+                className="px-4 py-1.5 text-xs text-slate-500 hover:text-slate-800 cursor-pointer disabled:opacity-50"
               >
                 ยกเลิก
               </button>
               <button
                 type="button"
+                disabled={isExtendingDeadline}
                 onClick={handleExtendDeadline}
-                className="btn-pastel px-5 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl shadow-pastel-sm cursor-pointer"
+                className="btn-pastel flex items-center justify-center gap-1.5 px-5 py-2 text-xs font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl shadow-pastel-sm cursor-pointer disabled:opacity-50"
               >
-                บันทึกการขยายเวลา
+                {isExtendingDeadline ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>กำลังบันทึก...</span>
+                  </>
+                ) : (
+                  <span>บันทึกการขยายเวลา</span>
+                )}
               </button>
             </div>
           </div>

@@ -9,7 +9,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ currentView = 'student', onToggleView, onLogoClick }) => {
   return (
-    <header className="sticky top-2 z-40 px-3 sm:px-6 max-w-7xl mx-auto w-full pt-2">
+    <header className="sticky top-2 z-40 px-3 sm:px-6 max-w-7xl mx-auto w-full pt-2 print:hidden">
       <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-xs px-4 sm:px-6 py-2.5 flex items-center justify-between transition-all">
         {/* Brand Logo & Name */}
         <div

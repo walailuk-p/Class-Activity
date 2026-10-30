@@ -1,13 +1,19 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
 export const app = initializeApp(firebaseConfig);
 
-// Critical requirement: initialize Firestore with database ID
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Critical requirement: initialize Firestore with database ID and auto-detect long polling
+export const db = initializeFirestore(
+  app,
+  {
+    experimentalAutoDetectLongPolling: true,
+  },
+  firebaseConfig.firestoreDatabaseId
+);
 
 // Initialize Auth
 export const auth = getAuth(app);
@@ -44,8 +50,11 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const rawErrorMsg = error instanceof Error ? error.message : String(error);
+  const isOffline = rawErrorMsg.includes('client is offline') || rawErrorMsg.includes('unavailable');
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: rawErrorMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -60,6 +69,12 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
+
+  if (isOffline) {
+    console.warn('Firestore client offline notice: ', rawErrorMsg);
+    throw new Error('ระบบกำลังเชื่อมต่อฐานข้อมูล กรุณาลองใหม่อีกครั้ง');
+  }
+
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }

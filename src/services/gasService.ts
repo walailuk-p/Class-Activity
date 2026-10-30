@@ -102,7 +102,7 @@ function readFileAsBase64(file: File): Promise<string> {
  */
 export const GAS_TEMPLATE_CODE = `/**
  * ====================================================================
- * ClassWork - Google Apps Script Drive Uploader (Spark Free Plan)
+ * Class Activity - Google Apps Script Drive Uploader (Spark Free Plan)
  * บันทึกไฟล์งานของนักศึกษาลงใน Google Drive ของอาจารย์โดยตรง
  * ====================================================================
  * 
@@ -112,11 +112,11 @@ export const GAS_TEMPLATE_CODE = `/**
  * 3. กดปุ่ม "Deploy" (การทำให้ใช้งานได้) -> "New deployment" (การทำให้ใช้งานได้รายการใหม่)
  * 4. เลือกประเภท: "Web app" (เว็บแอป)
  * 5. ตั้งค่า:
- *    - Description: ClassWork Drive Storage
+ *    - Description: Class Activity Drive Storage
  *    - Execute as: "Me" (ตัวฉัน - ใช้อีเมลของคุณ)
  *    - Who has access: "Anyone" (ทุกคน)  <-- สำคัญมาก! เพื่อให้นักศึกษาส่งไฟล์ได้โดยไม่ต้องล็อกอิน
  * 6. กด "Deploy" และกด "Authorize access" (ให้สิทธิ์การเข้าถึง Google Drive)
- * 7. คัดลอก "Web app URL" (ลงท้ายด้วย /exec) มาวางในระบบ ClassWork
+ * 7. คัดลอก "Web app URL" (ลงท้ายด้วย /exec) มาวางในระบบ Class Activity
  */
 
 function doPost(e) {
@@ -131,7 +131,7 @@ function doPost(e) {
     var courseCode = data.courseCode || '';
 
     // โฟลเดอร์หลัก
-    var rootFolderName = "ClassWork_Submissions";
+    var rootFolderName = "ClassActivity_Submissions";
     var rootFolders = DriveApp.getFoldersByName(rootFolderName);
     var rootFolder = rootFolders.hasNext() ? rootFolders.next() : DriveApp.createFolder(rootFolderName);
 
@@ -176,7 +176,7 @@ function doPost(e) {
 function doGet(e) {
   var response = {
     status: "active",
-    name: "ClassWork Google Drive Storage Service",
+    name: "Class Activity Google Drive Storage Service",
     timestamp: new Date().toISOString()
   };
   return ContentService.createTextOutput(JSON.stringify(response))

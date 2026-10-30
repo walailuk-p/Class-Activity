@@ -31,15 +31,25 @@ export async function lookupStudent(
   if (!cleanId) return null;
 
   const lookupDocId = `${courseId}_${cleanId}`;
-  try {
-    const docSnap = await getDoc(doc(db, 'rosterLookup', lookupDocId));
-    if (!docSnap.exists()) {
-      return null;
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const docSnap = await getDoc(doc(db, 'rosterLookup', lookupDocId));
+      if (!docSnap.exists()) {
+        return null;
+      }
+      return docSnap.data() as RosterLookup;
+    } catch (error: any) {
+      const msg = error instanceof Error ? error.message : String(error);
+      const isOffline = msg.includes('client is offline') || msg.includes('unavailable');
+      if (isOffline && attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+        continue;
+      }
+      handleFirestoreError(error, OperationType.GET, `rosterLookup/${lookupDocId}`);
     }
-    return docSnap.data() as RosterLookup;
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, `rosterLookup/${lookupDocId}`);
   }
+  return null;
 }
 
 export interface SubmitAssignmentParams {
@@ -121,13 +131,23 @@ export async function getStudentSubmission(
   studentId: string
 ): Promise<Submission | null> {
   const docId = `${assignmentId}_${studentId}`;
-  try {
-    const snap = await getDoc(doc(db, 'submissions', docId));
-    if (!snap.exists()) return null;
-    return snap.data() as Submission;
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, `submissions/${docId}`);
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const snap = await getDoc(doc(db, 'submissions', docId));
+      if (!snap.exists()) return null;
+      return snap.data() as Submission;
+    } catch (error: any) {
+      const msg = error instanceof Error ? error.message : String(error);
+      const isOffline = msg.includes('client is offline') || msg.includes('unavailable');
+      if (isOffline && attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+        continue;
+      }
+      handleFirestoreError(error, OperationType.GET, `submissions/${docId}`);
+    }
   }
+  return null;
 }
 
 export function subscribeToAssignmentSubmissions(

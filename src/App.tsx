@@ -80,10 +80,10 @@ export default function App() {
       </main>
 
       {/* Cute Minimal Footer */}
-      <footer className="py-6 border-t border-slate-200/60 bg-white/60 backdrop-blur-xs text-xs text-slate-500">
+      <footer className="py-6 border-t border-slate-200/60 bg-white/60 backdrop-blur-xs text-xs text-slate-500 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <p className="font-medium text-slate-600">
-            ClassWork • ระบบส่งงานในชั้นเรียนแบบ Minimalist
+            Class Activity • กิจกรรมในชั้นเรียน
           </p>
 
           <div className="flex items-center gap-4">

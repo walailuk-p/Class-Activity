@@ -90,30 +90,50 @@ export async function createAssignment(params: CreateAssignmentParams): Promise<
  */
 export async function getAssignmentByCode(code: string): Promise<Assignment | null> {
   const cleanCode = code.trim().toUpperCase();
-  try {
-    const q = query(
-      collection(db, 'assignments'),
-      where('code', '==', cleanCode),
-      limit(1)
-    );
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) {
-      return null;
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const q = query(
+        collection(db, 'assignments'),
+        where('code', '==', cleanCode),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        return null;
+      }
+      return snapshot.docs[0].data() as Assignment;
+    } catch (error: any) {
+      const msg = error instanceof Error ? error.message : String(error);
+      const isOffline = msg.includes('client is offline') || msg.includes('unavailable');
+      if (isOffline && attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+        continue;
+      }
+      handleFirestoreError(error, OperationType.LIST, 'assignments');
     }
-    return snapshot.docs[0].data() as Assignment;
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, 'assignments');
   }
+  return null;
 }
 
 export async function getAssignmentById(assignmentId: string): Promise<Assignment | null> {
-  try {
-    const d = await getDoc(doc(db, 'assignments', assignmentId));
-    if (!d.exists()) return null;
-    return d.data() as Assignment;
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, `assignments/${assignmentId}`);
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const d = await getDoc(doc(db, 'assignments', assignmentId));
+      if (!d.exists()) return null;
+      return d.data() as Assignment;
+    } catch (error: any) {
+      const msg = error instanceof Error ? error.message : String(error);
+      const isOffline = msg.includes('client is offline') || msg.includes('unavailable');
+      if (isOffline && attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+        continue;
+      }
+      handleFirestoreError(error, OperationType.GET, `assignments/${assignmentId}`);
+    }
   }
+  return null;
 }
 
 export async function getAssignmentsByInstructor(instructorId: string): Promise<Assignment[]> {
@@ -153,7 +173,15 @@ export async function extendAssignmentDeadline(
   assignmentId: string,
   newCloseAt: string
 ): Promise<void> {
-  return updateAssignment(assignmentId, { closeAt: newCloseAt });
+  if (!newCloseAt || !newCloseAt.trim()) {
+    throw new Error('กรุณาระบุกำหนดเวลาปิดรับงานใหม่');
+  }
+  const dateObj = new Date(newCloseAt);
+  if (isNaN(dateObj.getTime())) {
+    throw new Error('รูปแบบวันเวลาที่ระบุไม่ถูกต้อง กรุณาเลือกวันเวลาใหม่อีกครั้ง');
+  }
+  const isoCloseAt = dateObj.toISOString();
+  return updateAssignment(assignmentId, { closeAt: isoCloseAt });
 }
 
 export async function deleteAssignment(assignmentId: string): Promise<void> {

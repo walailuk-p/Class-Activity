@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Calendar,
+  Camera,
   CheckCircle2,
   Clock,
   Download,
@@ -19,7 +20,8 @@ import {
   Users,
   Copy,
   Check,
-  Info
+  Info,
+  ExternalLink
 } from 'lucide-react';
 import { Assignment, RosterLookup, Submission } from '../types';
 import { getAssignmentByCode } from '../services/assignmentService';
@@ -156,10 +158,43 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         setPreviousSubmission(null);
       }
 
+      // Check whether assignment can currently accept new submissions
+      const now = new Date();
+      const closeTime = new Date(assignment.closeAt);
+      const openTime = new Date(assignment.openAt);
+      const isClosed = assignment.status === 'closed';
+      const isPastClose = now > closeTime;
+      const isBeforeOpen = now < openTime;
+      const cannotAcceptWork = isClosed || (isPastClose && !assignment.allowLate) || isBeforeOpen;
+
+      if (existing) {
+        // If student already submitted, and assignment is closed or does NOT allow resubmission:
+        if (cannotAcceptWork || !assignment.allowResubmit) {
+          // Immediately navigate to Step 4 to show their existing receipt proof!
+          setReceipt(existing);
+          setStep(4);
+          return;
+        }
+      } else if (cannotAcceptWork) {
+        // Student has not submitted yet, and the assignment is closed or past deadline
+        if (isClosed) {
+          setStudentError('งานนี้ถูกปิดรับงานโดยอาจารย์ผู้สอนแล้ว');
+        } else if (isPastClose && !assignment.allowLate) {
+          setStudentError(
+            `หมดเวลาส่งงานแล้วเมื่อ ${closeTime.toLocaleString('th-TH')} และไม่อนุญาตให้ส่งช้า กรุณาติดต่ออาจารย์ผู้สอน`
+          );
+        } else if (isBeforeOpen) {
+          setStudentError(
+            `งานนี้ยังไม่ถึงเวลาเปิดรับ (เปิดรับวันที่ ${openTime.toLocaleString('th-TH')})`
+          );
+        }
+        return;
+      }
+
       // Proceed to Step 3
       setStep(3);
     } catch (err: any) {
-      console.error(err);
+      console.warn('Verify student notice:', err?.message || err);
       setStudentError(err.message || 'เกิดข้อผิดพลาดในการตรวจสอบรหัสนักศึกษา');
     } finally {
       setStudentLoading(false);
@@ -187,6 +222,26 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     if (!assignment || !verifiedStudent) return;
 
     setSubmitError(null);
+
+    // Pre-flight submission validity check before starting file upload
+    const now = new Date();
+    const closeTime = new Date(assignment.closeAt);
+    const openTime = new Date(assignment.openAt);
+
+    if (assignment.status === 'closed') {
+      setSubmitError('งานนี้ถูกปิดรับงานโดยผู้สอนแล้ว ไม่สามารถส่งงานได้');
+      return;
+    }
+
+    if (now < openTime) {
+      setSubmitError(`งานนี้ยังไม่เปิดรับการส่งงาน (เปิดรับวันที่ ${openTime.toLocaleString('th-TH')})`);
+      return;
+    }
+
+    if (now > closeTime && !assignment.allowLate) {
+      setSubmitError(`หมดเวลาส่งงานแล้วเมื่อ ${closeTime.toLocaleString('th-TH')} และไม่อนุญาตให้ส่งช้า`);
+      return;
+    }
 
     if (submissionType === 'file' && !selectedFile) {
       setSubmitError('กรุณาเลือกไฟล์งานที่ต้องการส่ง');
@@ -247,7 +302,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       setReceipt(submitted);
       setStep(4);
     } catch (err: any) {
-      console.error(err);
+      console.warn('Submission notice:', err?.message || err);
       setSubmitError(err.message || 'เกิดข้อผิดพลาดในการส่งงาน');
     } finally {
       setSubmitting(false);
@@ -334,7 +389,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
   const handleCopyReceipt = () => {
     if (!receipt) return;
-    const textToCopy = `[ใบรับงาน ClassWork]\nรหัสอ้างอิง: ${receipt.receiptId}\nงาน: ${assignment?.title}\nวิชา: ${assignment?.courseCode}\nรหัสนักศึกษา: ${receipt.studentId}\nชื่อ-นามสกุล: ${receipt.studentName}\nกลุ่ม: ${receipt.sec} (เลขที่ ${receipt.studentNo})\nเวลาที่ส่ง: ${new Date(receipt.submittedAt).toLocaleString('th-TH')}\nสถานะ: ${receipt.status === 'on_time' ? 'ส่งตรงเวลา' : 'ส่งช้า'}`;
+    const textToCopy = `[หลักฐานการส่งงาน Class Activity]\nรหัสอ้างอิง: ${receipt.receiptId}\nงาน: ${assignment?.title}\nวิชา: ${assignment?.courseCode}\nรหัสนักศึกษา: ${receipt.studentId}\nชื่อ-นามสกุล: ${receipt.studentName}\nกลุ่ม: ${receipt.sec} (เลขที่ ${receipt.studentNo})\nเวลาที่ส่ง: ${new Date(receipt.submittedAt).toLocaleString('th-TH')}\nสถานะ: ${receipt.status === 'on_time' ? 'ส่งตรงเวลา' : 'ส่งช้า'}`;
     navigator.clipboard.writeText(textToCopy);
     setCopiedReceipt(true);
     setTimeout(() => setCopiedReceipt(false), 2500);
@@ -362,7 +417,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     <div className="min-h-[calc(100vh-5rem)] py-6 px-4 sm:px-6">
       <div className={`mx-auto transition-all duration-300 ${step === 4 ? 'max-w-6xl' : 'max-w-xl'}`}>
         {/* Step Indicator Header with Cute Pill Steps */}
-        <div className="mb-7">
+        <div className="mb-7 print:hidden">
           <div className="flex items-center justify-between px-2 text-xs font-semibold">
             <span className={`flex items-center gap-1.5 transition-colors ${step >= 1 ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>
               <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step >= 1 ? 'bg-indigo-500 text-white shadow-xs' : 'bg-slate-200 text-slate-500'}`}>1</span>
@@ -396,7 +451,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <div className="inline-flex p-3.5 rounded-2xl bg-gradient-to-tr from-indigo-100 via-purple-50 to-pink-100 text-indigo-600 mb-3 shadow-pastel-sm">
                 <Sparkles className="w-7 h-7 text-indigo-500" />
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">ระบบส่งงานในชั้นเรียน</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">กิจกรรมในชั้นเรียน</h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
                 กรอกรหัสงาน 6 หลักที่อาจารย์แจ้งในห้องเรียน เพื่อเริ่มส่งงาน
               </p>
@@ -454,21 +509,17 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               </button>
             </form>
 
-            <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center justify-center text-xs text-slate-500 gap-2">
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                <span>ไม่ต้อง Log In อีเมล • รองรับทุกอุปกรณ์</span>
-              </div>
-              {onNavigateToTeacher && (
+            {onNavigateToTeacher && (
+              <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center justify-center text-xs text-slate-500">
                 <button
                   type="button"
                   onClick={onNavigateToTeacher}
-                  className="text-indigo-600 hover:text-indigo-700 hover:underline font-medium mt-1"
+                  className="text-indigo-600 hover:text-indigo-700 hover:underline font-medium"
                 >
                   สำหรับอาจารย์ผู้สอน: คลิกที่นี่เพื่อจัดการงาน
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -494,7 +545,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   <Clock className="w-3.5 h-3.5 text-indigo-400" />
                   <span>กำหนดส่ง: {new Date(assignment.closeAt).toLocaleString('th-TH')}</span>
                 </div>
-                {isPastClose ? (
+                {assignment.status === 'closed' ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 font-medium">
+                    ปิดรับงานโดยผู้สอน
+                  </span>
+                ) : isPastClose ? (
                   assignment.allowLate ? (
                     <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
                       เกินกำหนดส่ง (ส่งช้าได้)
@@ -633,16 +688,56 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               </div>
 
               {previousSubmission && (
-                <div className="mt-3 pt-2.5 border-t border-emerald-200/70 text-xs text-emerald-900 flex items-center justify-between">
+                <div className="mt-3 pt-2.5 border-t border-emerald-200/70 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
                   <span>คุณเคยส่งงานนี้แล้วเมื่อ {new Date(previousSubmission.submittedAt).toLocaleTimeString('th-TH')}</span>
-                  {assignment.allowResubmit && (
-                    <span className="text-[11px] font-semibold text-emerald-700 bg-white px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      ส่งใหม่ได้ (ใช้ไฟล์ล่าสุด)
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReceipt(previousSubmission);
+                        setStep(4);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold text-emerald-800 bg-white hover:bg-emerald-50 border border-emerald-300 shadow-2xs transition-colors cursor-pointer"
+                    >
+                      <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>ดูไฟล์งานเดิม</span>
+                    </button>
+                    {assignment.allowResubmit && (
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-white/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        ส่งใหม่ได้ (ใช้ไฟล์ล่าสุด)
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
+
+            {/* Status Warning Banner */}
+            {assignment.status === 'closed' ? (
+              <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>งานนี้ถูกปิดรับงานโดยอาจารย์ผู้สอนแล้ว ไม่สามารถส่งงานได้</span>
+              </div>
+            ) : isPastClose ? (
+              assignment.allowLate ? (
+                <div className="mb-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+                  <Clock className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>⚠️ ส่งงานเกินกำหนดส่ง (ส่งช้า) ระบบจะบันทึกสถานะเป็น "ส่งช้า (LATE)"</span>
+                </div>
+              ) : (
+                <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>
+                    หมดเวลาส่งงานแล้วเมื่อ {new Date(assignment.closeAt).toLocaleString('th-TH')} และไม่อนุญาตให้ส่งช้า
+                  </span>
+                </div>
+              )
+            ) : isBeforeOpen ? (
+              <div className="mb-4 p-3.5 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 text-xs flex items-center gap-2">
+                <Clock className="w-4 h-4 shrink-0 text-slate-500" />
+                <span>งานนี้ยังไม่ถึงเวลาเปิดรับงาน (เปิดรับวันที่ {new Date(assignment.openAt).toLocaleString('th-TH')})</span>
+              </div>
+            ) : null}
 
             {/* Submission Form */}
             <form onSubmit={handleSubmitWork} className="space-y-5">
@@ -727,7 +822,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || assignment.status === 'closed' || (isPastClose && !assignment.allowLate) || isBeforeOpen}
                   className="flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl font-semibold text-white bg-indigo-500 hover:bg-indigo-600 active:scale-98 transition-all shadow-pastel-sm disabled:opacity-50 cursor-pointer"
                 >
                   {submitting ? (
@@ -749,9 +844,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
         {/* ================= STEP 4: SUBMISSION REPORT (SUCCESS) ================= */}
         {step === 4 && receipt && (
-          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200 print:space-y-0 print:m-0 print:p-0">
             {/* Top notification banner */}
-            <div className="text-center">
+            <div className="text-center print:hidden">
               <div className="inline-flex p-3 rounded-2xl bg-[#e7f3ec] text-[#055e42] mb-2 shadow-xs ring-4 ring-emerald-50">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
@@ -762,11 +857,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             </div>
 
             {/* Scrollable container for mobile to maintain 1024px report proportions */}
-            <div className="w-full overflow-x-auto no-scrollbar pb-4 flex justify-start lg:justify-center">
+            <div className="w-full overflow-x-auto no-scrollbar pb-4 flex justify-start lg:justify-center print:overflow-visible print:p-0 print:m-0 print:block">
               {/* Formal Report Template Container: Explicit 1024px Fixed Width for High-Resolution Export */}
               <div
                 ref={receiptRef}
-                className="w-[1024px] shrink-0 bg-[#f8faf6] p-8 text-slate-800 font-['Prompt',sans-serif] relative overflow-hidden border border-slate-200 rounded-3xl shadow-xl space-y-6"
+                className="w-[1024px] shrink-0 bg-[#f8faf6] p-8 text-slate-800 font-['Prompt',sans-serif] relative overflow-hidden border border-slate-200 rounded-3xl shadow-xl space-y-6 print:w-full print:border-none print:shadow-none print:m-0 print:p-4 print:rounded-none"
               >
                 {/* Geometric Green Corner Accent Top Right */}
                 <div className="absolute top-0 right-0 w-36 h-36 overflow-hidden pointer-events-none">
@@ -874,9 +969,28 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         <span className="shrink-0 px-3.5 py-1 rounded-full bg-[#055e42] text-white font-bold text-xs shadow-2xs">
                           ไฟล์ที่ส่ง
                         </span>
-                        <span className="text-xs font-semibold text-slate-800 leading-snug pt-1 break-all">
-                          {receipt.fileName || receipt.workLink || 'ไฟล์ผลงานในระบบ'}
-                        </span>
+                        <div className="flex-1 min-w-0 pt-1">
+                          <span className="text-xs font-semibold text-slate-800 leading-snug break-all block">
+                            {receipt.fileName || receipt.workLink || 'ไฟล์ผลงานในระบบ'}
+                          </span>
+                          {((receipt.fileUrl && (receipt.fileUrl.startsWith('http://') || receipt.fileUrl.startsWith('https://'))) ||
+                            (receipt.workLink && (receipt.workLink.startsWith('http://') || receipt.workLink.startsWith('https://')))) && (
+                            <a
+                              href={
+                                receipt.fileUrl && (receipt.fileUrl.startsWith('http://') || receipt.fileUrl.startsWith('https://'))
+                                  ? receipt.fileUrl
+                                  : receipt.workLink
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#055e42] border border-emerald-200/80 text-xs font-semibold transition-colors print:hidden"
+                              title="เปิดดูหรือดาวน์โหลดไฟล์งานที่ส่ง"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>เปิดดู / ดาวน์โหลดไฟล์งานที่ส่ง</span>
+                            </a>
+                          )}
+                        </div>
                       </div>
 
                       {/* 4. วันที่ส่ง */}
@@ -997,7 +1111,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto pt-2">
+            <div className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto pt-2 print:hidden">
               <button
                 type="button"
                 onClick={handleDownloadReceiptImage}
@@ -1012,10 +1126,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 ) : (
                   <>
                     <Download className="w-4 h-4" />
-                    <span>ดาวน์โหลดหลักฐานการส่ง</span>
+                    <span>ดาวน์โหลดรูปภาพ (PNG)</span>
                   </>
                 )}
               </button>
+
               <button
                 type="button"
                 onClick={resetAll}
@@ -1026,25 +1141,16 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               </button>
             </div>
 
-            {/* Secondary fallback copy text button */}
-            <div className="text-center pt-1">
-              <button
-                type="button"
-                onClick={handleCopyReceipt}
-                className="text-xs text-slate-500 hover:text-[#055e42] font-medium inline-flex items-center gap-1.5 transition-colors"
-              >
-                {copiedReceipt ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span className="text-emerald-600">คัดลอกข้อความหลักฐานแล้ว</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>คัดลอกข้อความหลักฐาน</span>
-                  </>
-                )}
-              </button>
+            {/* Prominent Screenshot Advisory Banner (Clean Single Line) */}
+            <div className="max-w-2xl mx-auto pt-1 print:hidden">
+              <div className="flex items-center justify-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-amber-50/90 border border-amber-200/90 shadow-2xs overflow-hidden">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200/60">
+                  <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-600 animate-pulse" />
+                </div>
+                <p className="text-[11px] sm:text-xs md:text-sm font-bold text-amber-900 whitespace-nowrap tracking-tight">
+                  หากไม่สามารถดาวน์โหลดรูปภาพได้ ให้นักศึกษาบันทึกภาพหน้าจอนี้เก็บไว้เป็นหลักฐาน
+                </p>
+              </div>
             </div>
           </div>
         )}
