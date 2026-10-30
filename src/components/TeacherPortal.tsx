@@ -31,6 +31,7 @@ import {
   MoreVertical,
   Pencil,
   Plus,
+  QrCode,
   RefreshCw,
   Search,
   Settings,
@@ -339,6 +340,12 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [copiedGasCode, setCopiedGasCode] = useState(false);
+
+  // Dynamic QR Code Modal (Projector Display)
+  const [showQrModalAssignment, setShowQrModalAssignment] = useState<Assignment | null>(null);
+  const [copiedQrLink, setCopiedQrLink] = useState(false);
+  const [copiedQrCode, setCopiedQrCode] = useState(false);
+  const [isDownloadingQr, setIsDownloadingQr] = useState(false);
 
   // Quick Extend Deadline Modal
   const [extendModalAssignment, setExtendModalAssignment] = useState<Assignment | null>(null);
@@ -800,12 +807,52 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
   };
 
   const handleCopyLink = (code: string) => {
-    const origin = window.location.origin;
-    const path = window.location.pathname;
-    const url = `${origin}${path}?code=${code}`;
-    navigator.clipboard.writeText(url);
+    const targetUrl = `https://class-activity-teach.netlify.app/?code=${code}`;
+    navigator.clipboard.writeText(targetUrl);
     setCopiedLink(code);
     setTimeout(() => setCopiedLink(null), 2000);
+  };
+
+  const handleOpenQrModal = (assignment: Assignment) => {
+    setShowQrModalAssignment(assignment);
+    setCopiedQrLink(false);
+    setCopiedQrCode(false);
+  };
+
+  const handleCopyQrLink = (code: string) => {
+    const targetUrl = `https://class-activity-teach.netlify.app/?code=${code}`;
+    navigator.clipboard.writeText(targetUrl);
+    setCopiedQrLink(true);
+    setTimeout(() => setCopiedQrLink(false), 2000);
+  };
+
+  const handleCopyQrCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedQrCode(true);
+    setTimeout(() => setCopiedQrCode(false), 2000);
+  };
+
+  const handleDownloadQrCode = async (assignment: Assignment) => {
+    setIsDownloadingQr(true);
+    const targetUrl = `https://class-activity-teach.netlify.app/?code=${assignment.code}`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(targetUrl)}&margin=15`;
+    try {
+      const response = await fetch(qrUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `QRCode_${assignment.courseCode}_${assignment.code}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.warn('Direct QR code download fallback:', err);
+      window.open(qrUrl, '_blank');
+    } finally {
+      setIsDownloadingQr(false);
+    }
   };
 
   const handleToggleStatus = async (assign: Assignment) => {
@@ -1229,6 +1276,14 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
                             </p>
                           </div>
                           <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenQrModal(assign)}
+                              title="เปิด QR Code หน้าจอสำหรับโปรเจกเตอร์"
+                              className="p-2.5 rounded-xl bg-white border border-indigo-200/80 hover:bg-indigo-50 hover:text-indigo-600 text-indigo-700 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5"
+                            >
+                              <QrCode className="w-4 h-4 text-indigo-600" />
+                              <span className="text-[11px] font-bold text-indigo-700 hidden sm:inline">QR Code</span>
+                            </button>
                             <button
                               onClick={() => handleCopyCode(assign.code)}
                               title="คัดลอกรหัส"
@@ -2040,13 +2095,23 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
                 </select>
 
                 {selectedAssignment && (
-                  <button
-                    onClick={handleExportCsv}
-                    className="btn-pastel inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 shadow-2xs cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>ส่งออก CSV</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenQrModal(selectedAssignment)}
+                      title="เปิด QR Code หน้าจอโปรเจกเตอร์"
+                      className="btn-pastel inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 shadow-2xs cursor-pointer"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      <span>QR Code</span>
+                    </button>
+                    <button
+                      onClick={handleExportCsv}
+                      className="btn-pastel inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 shadow-2xs cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>ส่งออก CSV</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -2485,6 +2550,112 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ user, authLoading,
                       <span>ยืนยันลบรายวิชา</span>
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Modal: Dynamic Projector QR Code */}
+      {showQrModalAssignment && (() => {
+        const targetUrl = `https://class-activity-teach.netlify.app/?code=${showQrModalAssignment.code}`;
+        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(targetUrl)}`;
+
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-150"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowQrModalAssignment(null);
+              }
+            }}
+          >
+            <div className="bg-white border border-slate-200 rounded-3xl max-w-2xl sm:max-w-3xl w-full p-6 sm:p-8 shadow-2xl space-y-6 text-center animate-in zoom-in-95 duration-150 relative my-auto">
+              {/* Close Modal Button */}
+              <button
+                type="button"
+                onClick={() => setShowQrModalAssignment(null)}
+                className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="ปิดหน้าต่าง (Close)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {/* Course Code, Section, and Assignment Title Above QR Code */}
+              <div className="space-y-2 pr-8 pl-8">
+                <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 shadow-2xs">
+                  <span>{showQrModalAssignment.courseCode}</span>
+                  <span>•</span>
+                  <span>{showQrModalAssignment.sec === 'ALL' ? 'ทุกกลุ่มเรียน (All Sec)' : showQrModalAssignment.sec}</span>
+                </div>
+
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-snug">
+                  {showQrModalAssignment.title}
+                </h2>
+
+                <p className="text-xs sm:text-sm text-slate-500">
+                  สแกน QR Code ด้วยมือถือเพื่อเปิดหน้าระบบและส่งงานได้ทันที
+                </p>
+              </div>
+
+              {/* Center Projector Area: Side-by-side on sm/md screens */}
+              <div className="bg-gradient-to-b md:bg-gradient-to-r from-indigo-50/50 via-purple-50/20 to-slate-50/60 p-6 sm:p-8 rounded-3xl border border-indigo-100/90 shadow-inner flex flex-col md:flex-row items-center justify-center gap-6 sm:gap-8">
+                {/* Dynamic QR Code Frame (Left) */}
+                <div className="p-3.5 sm:p-4 bg-white rounded-2xl shadow-md border-2 border-slate-200/90 shrink-0">
+                  <img
+                    src={qrImageUrl}
+                    alt={`QR Code for assignment ${showQrModalAssignment.code}`}
+                    className="w-52 h-52 sm:w-60 sm:h-60 md:w-64 md:h-64 object-contain rounded-lg select-none"
+                    loading="eager"
+                  />
+                </div>
+
+                {/* Right Side: 6-Digit Assignment Code & Notice Banner */}
+                <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left justify-center space-y-4 w-full">
+                  {/* 6-Digit Code */}
+                  <div className="w-full flex flex-col items-center md:items-start">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                      รหัสส่งงาน 6 หลัก (Assignment Code)
+                    </p>
+                    <div
+                      onClick={() => handleCopyQrCode(showQrModalAssignment.code)}
+                      title="คลิกเพื่อคัดลอกรหัสงาน"
+                      className="text-3xl sm:text-4xl font-mono font-extrabold tracking-[0.25em] text-indigo-900 bg-slate-100 py-3.5 px-6 sm:px-8 rounded-2xl border-2 border-indigo-200 text-center shadow-inner cursor-pointer select-all hover:border-indigo-400 hover:bg-indigo-50/60 transition-all inline-flex items-center justify-center gap-2.5 w-full max-w-xs"
+                    >
+                      <span>{showQrModalAssignment.code}</span>
+                      {copiedQrCode ? (
+                        <Check className="w-5 h-5 text-emerald-600 inline-block shrink-0" />
+                      ) : (
+                        <Copy className="w-5 h-5 text-indigo-400 opacity-60 inline-block shrink-0" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Prominent Notice Banner */}
+                  <div className="w-full max-w-sm rounded-2xl bg-amber-50 border-2 border-amber-300/90 p-3.5 sm:p-4 text-amber-950 shadow-xs flex items-start gap-2.5 text-left">
+                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-xs sm:text-sm font-bold leading-relaxed">
+                      อย่าลืมโหลดหลักฐานการส่งงานหรือบันทึกภาพหน้าจอเพื่อแนบส่งใน Ms Teams อีกครั้ง
+                    </p>
+                  </div>
+
+                  {/* Deadline Indicator */}
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium bg-white/90 px-3.5 py-1.5 rounded-full border border-slate-200/80 shadow-2xs">
+                    <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>กำหนดส่ง: {new Date(showQrModalAssignment.closeAt).toLocaleString('th-TH')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Controls: Only Close Button */}
+              <div className="flex items-center justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowQrModalAssignment(null)}
+                  className="w-full sm:w-auto px-8 py-3 rounded-2xl text-xs sm:text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
+                >
+                  ปิดหน้าต่าง
                 </button>
               </div>
             </div>

@@ -22,14 +22,18 @@ export default function App() {
     }
 
     const urlParams = new URLSearchParams(window.location.search);
+    const hasCodeParam = Boolean(
+      urlParams.get('code') ||
+      window.location.hash.includes('code=')
+    );
     const isExplicitTeacherRoute =
-      window.location.hash === '#teacher' || urlParams.get('mode') === 'teacher';
+      !hasCodeParam && (window.location.hash === '#teacher' || urlParams.get('mode') === 'teacher');
 
     if (isExplicitTeacherRoute) {
       setCurrentView('teacher');
     } else {
       setCurrentView('student');
-      // If there's an unnecessary hash, reset to clean path
+      // If there's an unnecessary hash or teacher hash while scanning a code, reset to clean path
       if (window.location.hash === '#teacher') {
         window.location.hash = '';
       }
@@ -62,6 +66,12 @@ export default function App() {
       <main className="flex-1 pb-10">
         {currentView === 'student' ? (
           <StudentPortal
+            initialCode={
+              new URLSearchParams(window.location.search).get('code') ||
+              new URLSearchParams(window.location.hash.replace(/^#\/?/, '')).get('code') ||
+              (window.location.hash.includes('code=') ? window.location.hash.split('code=')[1]?.slice(0, 8) : '') ||
+              ''
+            }
             onNavigateToTeacher={() => {
               setCurrentView('teacher');
               window.location.hash = '#teacher';

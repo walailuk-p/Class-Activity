@@ -70,18 +70,26 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   // Handle URL parameter on load (e.g., ?code=ABC123 or #code=ABC123)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const codeParam = params.get('code') || (window.location.hash.includes('code=') ? window.location.hash.split('code=')[1]?.slice(0, 6) : '');
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#\/?/, ''));
+    const codeParam =
+      params.get('code') ||
+      hashParams.get('code') ||
+      (window.location.hash.includes('code=') ? window.location.hash.split('code=')[1]?.slice(0, 8) : '') ||
+      initialCode;
+
     if (codeParam && codeParam.trim().length >= 4) {
-      setAssignmentCode(codeParam.trim().toUpperCase());
-      handleLookupAssignment(codeParam.trim().toUpperCase());
+      const cleanCode = codeParam.trim().toUpperCase();
+      setAssignmentCode(cleanCode);
+      handleLookupAssignment(cleanCode);
     }
-  }, []);
+  }, [initialCode]);
 
   // Step 1: Lookup Assignment
   const handleLookupAssignment = async (codeToSearch?: string) => {
     const code = (codeToSearch || assignmentCode).trim().toUpperCase();
     if (!code) {
       setCodeError('กรุณากรอกรหัสงาน 6 หลัก');
+      setStep(1);
       return;
     }
     setCodeLoading(true);
@@ -92,6 +100,14 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       if (!found) {
         setCodeError('ไม่พบรหัสงานนี้ในระบบ กรุณาตรวจสอบรหัส 6 หลักจากอาจารย์ผู้สอน');
         setAssignment(null);
+        setStep(1);
+        return;
+      }
+
+      if (found.status === 'closed') {
+        setCodeError('งานนี้ถูกปิดรับการส่งงานโดยอาจารย์ผู้สอนแล้ว');
+        setAssignment(null);
+        setStep(1);
         return;
       }
 
@@ -108,8 +124,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       // Automatically move to step 2
       setStep(2);
     } catch (err: any) {
-      console.error(err);
-      setCodeError(err.message || 'เกิดข้อผิดพลาดในการตรวจสอบรหัสงาน');
+      console.warn('Assignment lookup error:', err);
+      setCodeError(err?.message || 'ไม่สามารถตรวจสอบรหัสงานได้ กรุณาลองใหม่อีกครั้ง');
+      setAssignment(null);
+      setStep(1);
     } finally {
       setCodeLoading(false);
     }
@@ -396,6 +414,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   };
 
   const resetAll = () => {
+    try {
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch {
+      // ignore
+    }
     setStep(1);
     setAssignmentCode('');
     setAssignment(null);
